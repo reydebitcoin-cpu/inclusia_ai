@@ -1,0 +1,45 @@
+# Shared Summary — INCLUSIA AI BUSINESS SUITE
+
+## Objective
+- Entregar el SaaS multi-tenant INCLUSIA AI BUSINESS SUITE (backend Express+Prisma en `backend/`, frontend SPA Vite en la raíz): una PostgreSQL por tenant (`inclusia_t_<tenantId>`), catálogo de ~50 sistemas, core comercial y diseño 2030 "Neural Glass & Ambient Intelligence".
+- **Los 50 sistemas del catálogo ahora están TODOS FUNCIONALES**: 8 con dashboard propio (dashboard→`/app`, pos, parking, loans, exchange, animal-law) + **42 módulos con CRUD real vía MOTOR GENÉRICO** (`/api/gm`) con búsqueda, filtros, KPIs, exportación CSV, auditoría y RBAC.
+- **AEGIS SHIELD fue IMPLEMENTADO y luego ELIMINADO POR SOLICITUD DEL USUARIO** (motivo: interfería con el login en localhost, avisos "manipulación script bloqueada", revocaciones de sesión y recargas indeseadas). Estado actual: **la app corre completamente limpia, SIN capas AEGIS**.
+
+## Important Details
+- **Arquitectura multi-tenant**: una PostgreSQL por tenant. `consoleDb` (Prisma, datasource `env("DB_URL")`, BD `inclusia_backend`) + `prisma` Proxy con resolución por tenant vía `tenantStore` (ALS). Tablas creadas por Prisma usan **nombre PascalCase** (`Tenant`, `Session`, `AuditLog`, `TenantModule`, `EntityRecord`).
+- **Motor genérico de módulos** (`backend/src/core/`): `catalog.ts` (tipos FieldType: text/textarea/number/money/percent/date/datetime/boolean/select/multiselect/email/phone/color/file/url + helpers `defineModule/getModule/allModules/validatorFor/normalizeData/searchableFields` + helpers declarativos `t/ta/num/money/pct/dt/dd/bool/sel/msel/em/ph`, `ent`, `kp`). `catalog.data1.ts` (13 mód.), `catalog.data2.ts` (23 mód.), `catalog.data3.ts` (rrhh, control-empleados, empleos, soporte, documentos, permisos). `catalog.all.ts` importa los 3 (registro por side-effect) y re-exporta. **42 módulos engine**: ia-asistente, ecommerce, ventas-online, restaurante, pedidos-comida, delivery, facturacion, inventarios, pedidos, almacenes, proveedores, clientes, gastos, reservas, reservas-tickets, gasolinera, gimnasio, iglesia, salones, alquileres-casas, alquileres-motos, viajes, taxis, hoteles, activos, universidad, examenes, votacion, estudiantes, colegio, biblioteca, hospital, citas-medicas, citas-dentales, laboratorio, farmacia, rrhh, control-empleados, empleos, soporte, documentos, permisos.
+- **API genérica** `backend/src/modules/generic/router.ts` montada en `privateRouter.use("/gm", ...)` (→ `/api/gm`, con `authRequired`+`tenantGuard` hechos en privateRouter): `GET /catalog`, `GET /:slug/meta`, `GET /:slug/kpis`, `GET /:slug/:entity` (búsqueda `q` + filtros `f_<campo>` + paginación page/per máx50), `GET/PATCH/DELETE /:slug/:entity/:id`, `POST /:slug/:entity`, `GET /:slug/:entity/csv` (BOM UTF-8). Validación zod por entidad; `normalizeData` aplica defaults; escritura solo roles WRITE (SUPER_ADMIN/ADMIN/MANAGER/STAFF), delete solo DELETE_ROLES (SUPER_ADMIN/ADMIN/MANAGER); chequeo de módulo desactivado vía `tenantModule`; auditoría `gm.<slug>.<entity>.<action>` en cada mutación. **OJO**: la ruta `/:slug/:entity/csv` debe registrarse ANTES de `/:slug/:entity/:id` (orden de Express) — corregido.
+- **Migración engine**: `20260912000000_entity_engine` — tabla `EntityRecord` (`id`, `module`, `entity`, `data Json`, `createdAt`, `updatedAt` + índices) aplicada a `inclusia_backend` y a `inclusia_t_demo`, `inclusia_t_cmtxqh8p700012w93gouljj63`, `inclusia_t_cmtxtyyyb000011stpavv9lx3` (tenant creado por vitest). Insert manual en `_prisma_migrations` con `gen_random_uuid()`, checksum `'generic-engine'`.
+- **CONTEXT.md NO existe** (spec = prompt del usuario). Credenciales demo: `user@demo.inclusia`/`user1234` (ADMIN, mustChangePwd=false), `admin@inclusia.ai`/`Admin1234!` (SUPER_ADMIN → `/admin/login`, password reiniciada, failedAttempts=0), `staff@demo.inclusia`/`staff123` (mustChangePwd=false), `laura@neblina.example` (mustChangePwd=false). Tenants: `demo` y `cmtxqh8p700012w93gouljj63` (Café Neblina).
+- NOTA: una API key real se filtró en conversaciones previas del proyecto → **revocar, nunca usar.**
+- Servidores activos: API `:4000` (PID ~62961, `node dist/index.js`), Vite dev `:5173` (PID ~60734). Prisma: var `DB_URL` (no `DATABASE_URL`); `npx prisma migrate deploy` solo afecta consola; tenants se migran con psql manual. Psql en `/Applications/Postgres.app/Contents/Versions/16/bin` (usuario `inclusia_dev`).
+- Menú `src/core/systems.ts` ahora cubre **los 50 sistemas** (grupos General/Comercial/Finanzas/Operaciones/Educación/Salud/Personas/Core) incluido `animal-law` → `/app/animal-law`. Specs en `spec/` (00-MASTER + 50 módulos + README).
+
+## Work State
+### Completed
+- **50 sistemas funcionales (motor genérico `gm`) — NUEVO**:
+  - BACKEND: `catalog.ts` + `catalog.data1/2/3.ts` + `catalog.all.ts` (42 módulos, ~90+ entidades, KPIs por módulo); router `modules/generic/router.ts` completo (catalog/meta/kpis/CRUD/csv con validación zod, defaults, filtros, paginación, RBAC por rol y chequeo de módulo desactivado); montado en `index.ts`. `tsc` limpio, `npm run build` OK, API reiniciada (`:4000`, PID ~62961). Smoke test E2E completo: catalog=42, meta, create (id+data), validación de select inválido rechazado, get-one, búsqueda `q` (case-sensitive), filtro `f_category` (UTF-8), PATCH parcial (price+name), CSV con BOM, DELETE ok, re-búsqueda refleja el borrado. Backend vitest **12/12** (incl. rbac-rls).
+  - FRONTEND: `src/system/UniversalModule.tsx` (header de módulo, tarjetas KPI, tabs por entidad, fallback de error) y `src/system/EntityBrowser.tsx` (lista con búsqueda, filtros por select/boolean/multiselect, paginación, exportar CSV vía blob, modal crear/editar con inputs por tipo de campo y errores legibles, eliminar con confirm, recarga KPIs tras mutación). Ruta `system/:slug` en `src/App.tsx` ahora renderiza `UniversalModule` (ya no placeholder); `animal-law` añadido al menú Core. `tsc` frontend limpio + `npm run build` OK. Demo seed: registro "Laptop Pro" (price 1200) en tenant demo / ecommerce / productos.
+- **AEGIS SHIELD eliminado por completo (request del usuario)**: (resumen previo — frontend security/ removido, rutas y montajes `/security` y `/license` quitados, migración `20260913000000_remove_aegis` aplicada; verificación tsc/vitest/build OK).
+- **Tarea "arreglar Salir + menú completo" (previo, VERIFICADO)**: `POST /api/auth/logout` (revoca la `Session` vía `tokenHash`); `authRequired` valida sesión viva en `consoleDb`; `logout()` async; menú por grupos en `Shell.tsx` + botón "Salir". Login arreglado (mustChangePwd=false para user/staff/laura; admin reset a `Admin1234!`).
+- **Fases previas completadas** (Fase A BD por cliente, Fase B diseño 2030/catálogo/comercial/consola — intactas; el borrado solo tocó AEGIS).
+
+### Active
+- (ninguno)
+
+### Blocked
+- (ninguno)
+
+## Next Move
+1. Navegar http://localhost:5173 → login `user@demo.inclusia`/`user1234` → abrir módulos del menú: los 42 sin dashboard abren el módulo genérico (crear/editar/borrar/buscar/CSV/KPIs) y los 8 con dashboard propio siguen sus rutas. Probar p.ej. E-commerce (nuevo producto), RRHH (empleado), Hospital (cita), Farmacia (venta).
+2. (Opcional) Enriquecer el catálogo de entidades/KPIs de módulos puntuales en `catalog.data*.ts` según prioridad del README de `spec/`.
+3. (Pendiente histórico) Revocar la API key filtrada.
+4. (Housekeeping) `src/pages/SystemPlaceholder.tsx` quedó sin uso (ruta ahora → UniversalModule); puede borrarse.
+
+## Relevant Files
+- **Motor genérico**: `backend/src/core/catalog.ts`, `backend/src/core/catalog.data1.ts`, `backend/src/core/catalog.data2.ts`, `backend/src/core/catalog.data3.ts`, `backend/src/core/catalog.all.ts`, `backend/src/modules/generic/router.ts`, `backend/src/index.ts` (montaje /gm), `backend/prisma/schema.prisma` (modelo `EntityRecord`), `backend/prisma/migrations/20260912000000_entity_engine/migration.sql`.
+- **Frontend genérico**: `src/system/UniversalModule.tsx`, `src/system/EntityBrowser.tsx`, `src/App.tsx` (ruta `system/:slug`), `src/core/systems.ts` (menu 50, incl. animal-law), `src/pages/SystemPlaceholder.tsx` (sin uso).
+- Frontend: `src/App.tsx`, `src/pages/{Login,Register,Pricing,ChangePassword}.tsx`, `src/layout/Shell.tsx`, `src/core/systems.ts`, `src/core/api.ts` (axios, CSRF auto, 401→/login), `src/modules/{pos,parking,loans,exchange,animal-law}/*`, `src/design-system/*` (Button, Field, SmartTable, Kpi), `src/system/{CommandBar,NotificationCenter,ChatbotIA,ToastHost,BackgroundFX}.tsx`, `vite.config.ts`, `.env.development`.
+- Backend: `backend/src/index.ts`, `backend/src/modules/{auth,admin,public,pos,parking,loans,exchange,animal-law,crm,tickets,ai,billing,generic}/router.ts`, `backend/src/middleware/{auth,tenant}.ts`, `backend/src/core/{auth,rbac,errors,audit,catalog*}.ts`, `backend/prisma/schema.prisma`, `backend/prisma/migrations/` (`20260912000000_entity_engine`, `20260913000000_remove_aegis`).
+- Specs: `spec/` (00-MASTER.md, README.md, modules/01..50).
+- Herramientas: `npm run dev/build/preview` (raíz); backend: `npm run build` (tsc) / `node dist/index.js` / `npx vitest run` (12 tests).
