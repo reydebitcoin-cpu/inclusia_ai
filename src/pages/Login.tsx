@@ -22,7 +22,10 @@ export function Login({ admin }: { admin?: boolean }) {
       await login(email, password);
       navigate(admin ? "/admin" : "/app");
     } catch (err: any) {
-      setError(err.response?.data?.error ?? "No se pudo iniciar sesión");
+      setError(
+        err.response?.data?.error
+          ?? (err.request ? "No se puede conectar con la API. Inicia el backend en http://localhost:4000." : "No se pudo iniciar sesión"),
+      );
     } finally {
       setBusy(false);
     }
