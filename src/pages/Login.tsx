@@ -24,7 +24,7 @@ export function Login({ admin }: { admin?: boolean }) {
     } catch (err: any) {
       setError(
         err.response?.data?.error
-          ?? (err.request ? "No se puede conectar con la API. Inicia el backend en http://localhost:4000." : "No se pudo iniciar sesión"),
+          ?? (err.request ? "No se puede conectar con la API. Revisa la configuración del servicio." : "No se pudo iniciar sesión"),
       );
     } finally {
       setBusy(false);
