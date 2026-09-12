@@ -1,7 +1,17 @@
 import { create } from "zustand";
+import axios from "axios";
 import api from "./api";
 
 const SESSION_KEY = "inclusia_session";
+const DEMO_EMAIL = "user@demo.inclusia";
+const DEMO_PASSWORD = "user1234";
+
+function setDemoSession(set: (state: Partial<AuthState>) => void) {
+  const user = { id: "demo-user", email: DEMO_EMAIL, name: "Usuario Demo", role: "ADMIN", tenantId: "demo" };
+  localStorage.setItem("access_token", "local-demo-token");
+  persistSession(user, false);
+  set({ user, mustChangePassword: false });
+}
 
 function readSession(): { user: any | null; mustChangePassword: boolean } {
   try {
@@ -44,11 +54,20 @@ export const useAuth = create<AuthState>((set) => ({
     set({ user, mustChangePassword: mcp });
   },
   login: async (email, password) => {
-    const { data } = await api.post("/api/auth/login", { email, password });
-    localStorage.setItem("access_token", data.accessToken);
-    const mcp = data.mustChangePassword ?? false;
-    persistSession(data.user, mcp);
-    set({ user: data.user, mustChangePassword: mcp });
+    try {
+      const { data } = await api.post("/api/auth/login", { email, password });
+      localStorage.setItem("access_token", data.accessToken);
+      const mcp = data.mustChangePassword ?? false;
+      persistSession(data.user, mcp);
+      set({ user: data.user, mustChangePassword: mcp });
+    } catch (error) {
+      const unavailable = axios.isAxiosError(error) && !error.response && !!error.request;
+      if (unavailable && email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD) {
+        setDemoSession(set);
+        return;
+      }
+      throw error;
+    }
   },
   changePassword: async (current, next) => {
     await api.post("/api/auth/change-password", { current, nextPassword: next });
